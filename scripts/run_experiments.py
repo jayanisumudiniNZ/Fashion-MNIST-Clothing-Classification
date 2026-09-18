@@ -17,13 +17,13 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.data import CLASS_NAMES, get_dataloaders
 from src.evaluate import evaluate_model
+from src.figures import plot_lr_sweep, save_history
 from src.models import CNN, MLP
 from src.train import get_device, plot_history, train_model
 
@@ -72,18 +72,7 @@ def _write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
 
 
 def _plot_lr_sweep(rows: list[dict], out_path: Path) -> None:
-    fig, ax = plt.subplots(figsize=(5.5, 3.4))
-    labels = [f"{row['lr']:g}" for row in rows]
-    accs = [row["best_val_acc"] for row in rows]
-    ax.bar(labels, accs, color="#4C78A8")
-    ax.set_xlabel("Learning rate")
-    ax.set_ylabel("Best validation accuracy")
-    ax.set_title("CNN learning-rate sweep (no augmentation)")
-    ax.set_ylim(0.0, 1.0)
-    fig.tight_layout()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    plot_lr_sweep(rows, out_path)
 
 
 def run_lr_sweep(args, device) -> float:
@@ -177,6 +166,7 @@ def run_reported_experiments(args, device, lr: float) -> None:
                 ROOT / "figures" / f"curves_{spec['name']}_seed{seed}.png",
                 title=f"{spec['name']} seed={seed} lr={lr:g}",
             )
+            save_history(result["history"], spec["name"], seed)
             run_rows.append(
                 {
                     "run": spec["name"],

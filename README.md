@@ -54,6 +54,7 @@ code/
     evaluate_test.py
     gradcam_cnn.py
     gradcam_sanity.py   # Adebayo parameter randomisation
+    make_figures.py     # regenerate all report figures
     demo.py             # 1-epoch video demo
   figures/
   results/
@@ -108,13 +109,35 @@ python scripts/gradcam_sanity.py
 
 The second script does **not** retrain. It randomises the saved CNN from the top down and writes `figures/gradcam_sanity.png` plus `results/gradcam_sanity.csv`.
 
-### 6. Video demo (2–5 min MP4)
+### 6. Reproduce all report figures (no retraining)
+
+After checkpoints and `results/*.csv` exist:
+
+```bash
+python scripts/make_figures.py
+```
+
+This regenerates every figure used in the LaTeX report from Python:
+
+| Figure | Source |
+|--------|--------|
+| `sample_train.png`, `sample_train_aug.png`, `sample_train_crop.png` | `preview_data.py` / dataloaders |
+| `method_pipeline.png` | `src/figures.py` |
+| `lr_sweep.png` | `results/lr_sweep.csv` |
+| `curves_*_seed*.png` | `results/histories/*.json` |
+| `per_class_f1.png`, `confusion_cnn.png` | `evaluate_test.py` |
+| `gradcam_grid.png` | `gradcam_cnn.py` |
+| `gradcam_sanity.png` | `gradcam_sanity.py` |
+
+and copies them into `../cvpr2017AuthorKit/latex/figures/`.
+
+### 7. For Video demo
 
 ```bash
 python -u scripts/demo.py
 ```
 
-`demo.py` does not overwrite `results/metrics.csv`. Timed script: `../VIDEO_DEMO.md`.
+`demo.py` does not overwrite `results/metrics.csv`.
 
 ## Training recipe
 
@@ -134,4 +157,4 @@ python -u scripts/demo.py
 - `results/checkpoints/` and `*.pt`
 - `__pycache__/`
 
-Keep `results/*.csv`, `results/*.json`, `results/ablation.md`, and `figures/*.png`.
+Keep `results/*.csv`, `results/*.json`, `results/histories/`, `results/ablation.md`, and `figures/*.png`.

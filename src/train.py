@@ -134,6 +134,7 @@ def train_model(
                 "best_epoch": best_epoch,
                 "best_val_loss": best_val_loss,
                 "best_val_acc": best_val_acc,
+                "history": history,
             },
             checkpoint_path,
         )
