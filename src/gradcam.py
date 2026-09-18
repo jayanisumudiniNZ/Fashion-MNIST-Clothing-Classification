@@ -88,7 +88,7 @@ def overlay_heatmap(gray: np.ndarray, cam: np.ndarray, alpha: float = 0.45) -> n
     """Blend a grayscale 28x28 image with a jet heatmap."""
     heat = plt.get_cmap("jet")(cam)[..., :3]
     rgb = np.stack([gray, gray, gray], axis=-1)
-    return (1.0 - alpha) * rgb + alpha * heat
+    return np.clip((1.0 - alpha) * rgb + alpha * heat, 0.0, 1.0)
 
 
 def to_display_image(image: torch.Tensor, mean: float, std: float) -> np.ndarray:

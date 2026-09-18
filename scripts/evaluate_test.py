@@ -15,7 +15,12 @@ import numpy as np
 import torch
 
 from src.data import CLASS_NAMES, get_dataloaders
-from src.evaluate import evaluate_model, pair_confusion, save_confusion_matrix
+from src.evaluate import (
+    evaluate_model,
+    pair_confusion,
+    plot_per_class_f1,
+    save_confusion_matrix,
+)
 from src.models import CNN
 from src.train import get_device
 
@@ -147,6 +152,9 @@ def main() -> None:
             "recall_mean",
         ],
     )
+
+    f1_path = plot_per_class_f1(summary, ROOT / "figures" / "per_class_f1.png")
+    print(f"Saved {f1_path}")
 
     print("\nMean test F1 over 3 seeds (focus classes):")
     print(f"{'class':<12}  {'mlp':>8}  {'cnn':>8}  {'cnn_aug':>8}  {'cnn_crop':>8}")

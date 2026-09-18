@@ -1,6 +1,6 @@
 # Ablation answers from this project's code (Step 6)
 
-All numbers are from `metrics.csv`, `per_class_summary.csv`, and `confusion_cnn.csv`. They are **not** copied from papers.
+All numbers are from `metrics.csv`, `per_class_summary.csv`, `confusion_cnn.csv`, and `gradcam_sanity.csv`. They are **not** copied from papers.
 
 ## 1. Does the CNN beat the MLP?
 
@@ -11,37 +11,34 @@ All numbers are from `metrics.csv`, `per_class_summary.csv`, and `confusion_cnn.
 | MLP (no aug) | 88.88 ± 0.15 | 88.83 ± 0.17 |
 | CNN (no aug) | **92.08 ± 0.23** | **92.05 ± 0.23** |
 
-The CNN is about **3.2 percentage points** more accurate. Training used the same split, Adam, batch size 128, early stopping, and the same learning rate (3e-4). The gain is therefore from convolution, not from a different optimiser.
+The CNN is about **3.2 percentage points** more accurate. Training used the same split, Adam, batch size 128, early stopping, and the same learning rate (3e-4).
 
 ## 2. Does augmentation raise overall accuracy?
 
-**No, not in this setup.** Horizontal flip (p=0.5) plus a shift of at most 2 pixels **lowered** mean test accuracy:
+**No.** Two isolated CNN policies both lowered accuracy:
 
 | Model | Accuracy (%) | Macro-F1 (%) |
 |-------|--------------|--------------|
 | CNN (no aug) | **92.08 ± 0.23** | **92.05 ± 0.23** |
 | CNN + flip/shift | 91.38 ± 0.28 | 91.36 ± 0.32 |
+| CNN + crop (pad 4) | 90.13 ± 0.36 | 90.05 ± 0.43 |
 
-That is a drop of about **0.7 points**. The 1-epoch demo run is not used here; these figures are from the 30-epoch, 3-seed experiments.
+Crop is a **fourth run**, not a replacement of flip/shift.
 
-## 3. Does augmentation reduce Shirt ↔ T-shirt errors, or only help easy classes?
+## 3. Does either policy reduce Shirt ↔ T-shirt errors?
 
-**It does not reduce the hard-class errors.** Mean test F1 over 3 seeds:
+**No.** Mean Shirt F1: MLP 0.699, CNN **0.769**, flip/shift 0.746, crop 0.697. Crop returns Shirt to about the MLP level.
 
-| Class | MLP | CNN | CNN+aug |
-|-------|-----|-----|---------|
-| T-shirt/top | 0.846 | **0.872** | 0.870 |
-| Pullover | 0.805 | **0.878** | 0.871 |
-| Coat | 0.816 | **0.876** | 0.861 |
-| Shirt | 0.699 | **0.769** | 0.746 |
-| Trouser (easy) | 0.979 | 0.988 | 0.990 |
-| Bag (easy) | 0.973 | 0.984 | 0.985 |
+Best CNN (no aug, seed 2): Shirt → T-shirt **95**, T-shirt → Shirt **85**.
 
-Shirt remains the weakest class. Augmentation slightly **hurts** Shirt (0.769 → 0.746) and Coat, while easy classes stay high either way.
+## 4. Do Grad-CAM maps depend on trained weights (Adebayo-style)?
 
-On the best CNN (no aug, seed 2), the confusion matrix still shows:
+**Yes, they collapse when weights are randomised** (same five images, trained predicted class):
 
-- Shirt → T-shirt/top: **95**
-- T-shirt/top → Shirt: **85**
+| Randomisation | Mean Spearman vs trained map |
+|---------------|------------------------------|
+| Classifier only | 0.165 |
+| conv2 + classifier | 0.074 |
+| All weights | 0.085 |
 
-So remaining error is overlapping upper-body labels, not a lack of flip/shift.
+No extra training. Label-randomisation (train on shuffled labels) was not run.

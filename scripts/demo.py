@@ -61,7 +61,7 @@ def _open_figures(paths: list[Path]) -> None:
 def main() -> None:
     device = get_device()
     print("=" * 64)
-    print("COMP813 demo: Fashion-MNIST MLP vs CNN + Grad-CAM")
+    print("COMP813 demo: Fashion-MNIST MLP vs CNN, crop ablation, Grad-CAM")
     print("=" * 64)
     print(f"Device: {device}")
     print("No camera. Official 28x28 test images only.\n")
@@ -136,12 +136,17 @@ def main() -> None:
     print(f"   saved {gradcam_path.name}")
 
     _print_metrics_table()
+    print("\nFour isolated runs: MLP, CNN, CNN+flip/shift, CNN+crop (pad 4).")
+    print("Adebayo check randomises CNN weights; maps are in gradcam_sanity.png.")
     print("\nOpening result figures...")
     _open_figures(
         [
             ROOT / "figures" / "sample_train.png",
+            ROOT / "figures" / "sample_train_crop.png",
             cm_path,
             gradcam_path,
+            ROOT / "figures" / "gradcam_sanity.png",
+            ROOT / "figures" / "per_class_f1.png",
             ROOT / "figures" / "lr_sweep.png",
         ]
     )

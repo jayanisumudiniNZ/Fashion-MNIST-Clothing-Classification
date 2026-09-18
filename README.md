@@ -1,6 +1,6 @@
 # Fashion-MNIST clothing classification
 
-Individual COMP813 project: compare an MLP and a small CNN on Fashion-MNIST, ablate simple geometric augmentation, and inspect CNN predictions with Grad-CAM.
+Individual COMP813 project: compare an MLP and a small CNN on Fashion-MNIST, ablate two geometric augmentations (flip+shift, and a separate crop run), inspect CNN predictions with Grad-CAM, and run an Adebayo-style parameter-randomisation check.
 
 No camera is required. Evaluation uses the official 10,000-image Fashion-MNIST test set.
 
@@ -11,14 +11,16 @@ No camera is required. Evaluation uses the official 10,000-image Fashion-MNIST t
 | A | MLP | off | 88.88 ± 0.15 | 88.83 ± 0.17 |
 | B | CNN | off | **92.08 ± 0.23** | **92.05 ± 0.23** |
 | C | CNN | horizontal flip + ≤2 px shift | 91.38 ± 0.28 | 91.36 ± 0.32 |
+| D | CNN | random crop, pad=4 | 90.13 ± 0.36 | 90.05 ± 0.43 |
 
 Selected CNN learning rate: **3e-4** (validation accuracy 93.28%). Best CNN checkpoint: seed 2, **92.24%** test accuracy.
 
 Ablation answers from these runs (not from papers):
 
 1. The CNN beats the MLP by about 3.2 points under the same training recipe.
-2. Flip + shift does **not** raise overall accuracy (92.08% → 91.38%).
-3. Shirt remains the hardest class (CNN F1 0.769 vs CNN+aug 0.746). Shirt → T-shirt/top: 95; T-shirt/top → Shirt: 85.
+2. Flip + shift does **not** raise overall accuracy (92.08% → 91.38%). Isolated crop is worse (90.13%).
+3. Shirt remains the hardest class (CNN F1 0.769 vs flip/shift 0.746 vs crop 0.697).
+4. Grad-CAM maps collapse under cascading weight randomisation (mean Spearman 0.165 / 0.074 / 0.085 vs the trained map).
 
 Write-up: `results/ablation.md`. Report figures live in `figures/` and are copied into `../cvpr2017AuthorKit/latex/figures/`.
 
@@ -40,7 +42,7 @@ code/
   requirements.txt
   README.md
   src/
-    data.py          # load, stratified val split, augment
+    data.py          # load, stratified val split, flip_shift / crop
     models.py        # MLP and CNN
     train.py         # Adam, early stopping
     evaluate.py      # accuracy, F1, confusion matrix
@@ -51,14 +53,15 @@ code/
     run_experiments.py
     evaluate_test.py
     gradcam_cnn.py
-    demo.py          # 1-epoch video demo
-  figures/           # PNG plots for the report
-  results/           # csv / json tables (not the large .pt files)
+    gradcam_sanity.py   # Adebayo parameter randomisation
+    demo.py             # 1-epoch video demo
+  figures/
+  results/
 ```
 
 ## Reproduce
 
-Work from `code/` with the virtual environment activated. Fashion-MNIST downloads into `code/data/` on first run.
+Work from `code/` with the virtual environment activated.
 
 ### 1. Preview data
 
@@ -66,7 +69,7 @@ Work from `code/` with the virtual environment activated. Fashion-MNIST download
 python scripts/preview_data.py
 ```
 
-Prints split sizes and training-set mean/std, and writes `figures/sample_train.png` and `figures/sample_train_aug.png`.
+Writes `figures/sample_train.png`, `figures/sample_train_aug.png`, and `figures/sample_train_crop.png`.
 
 ### 2. Preview models
 
@@ -74,47 +77,36 @@ Prints split sizes and training-set mean/std, and writes `figures/sample_train.p
 python scripts/preview_models.py
 ```
 
-Prints parameter counts (MLP 235,146; CNN 421,642) and checks that both models map `(N, 1, 28, 28)` to 10 logits.
+### 3. Train
 
-### 3. Train (learning-rate sweep + 3 seeds)
+Full four-run experiment (overwrites all seeds; slow):
 
 ```bash
 PYTHONUNBUFFERED=1 python -u scripts/run_experiments.py
 ```
 
-This:
-
-1. Sweeps CNN learning rates `1e-3`, `3e-4`, `1e-4` on the **validation** set (no augmentation)
-2. Reuses the best LR for MLP, CNN, and CNN+aug, each with 3 seeds
-3. Writes `results/metrics.csv`, `results/runs.csv`, `results/per_class.csv`, `results/lr_sweep.csv`, and `figures/curves_*.png`
-
-Skip the sweep if you already have a chosen LR:
+Train **only** the crop ablation, keeping existing MLP / CNN / CNN+aug rows:
 
 ```bash
-python scripts/run_experiments.py --skip-sweep --lr 0.0003
+PYTHONUNBUFFERED=1 python -u scripts/run_experiments.py --skip-sweep --lr 0.0003 --runs cnn_crop
 ```
 
-Do **not** re-run this before the video demo: it overwrites the 3-seed results and takes a long time.
+Do **not** re-run the full command before the video demo: it overwrites the 3-seed results.
 
-### 4. Evaluate the best CNN
+### 4. Evaluate the best unaugmented CNN
 
 ```bash
 python scripts/evaluate_test.py
 ```
 
-Reloads the best CNN checkpoint, scores the 10,000-image test set, and writes:
-
-- `figures/confusion_cnn.png`
-- `results/confusion_cnn.csv`
-- `results/per_class_summary.csv`
-
 ### 5. Grad-CAM
 
 ```bash
 python scripts/gradcam_cnn.py
+python scripts/gradcam_sanity.py
 ```
 
-Writes `figures/gradcam_grid.png` for the best CNN: correct top/shoe/bag examples and Shirt ↔ T-shirt/top errors.
+The second script does **not** retrain. It randomises the saved CNN from the top down and writes `figures/gradcam_sanity.png` plus `results/gradcam_sanity.csv`.
 
 ### 6. Video demo (2–5 min MP4)
 
@@ -122,25 +114,24 @@ Writes `figures/gradcam_grid.png` for the best CNN: correct top/shoe/bag example
 python -u scripts/demo.py
 ```
 
-Runs a **1-epoch** training pass (allowed instead of full training), then reloads the saved CNN, reprints test metrics, and opens the confusion-matrix and Grad-CAM figures. Timed script: `../VIDEO_DEMO.md`.
+`demo.py` does not overwrite `results/metrics.csv`. Timed script: `../VIDEO_DEMO.md`.
 
-`demo.py` does not overwrite `results/metrics.csv`.
-
-## Training recipe (all three runs)
+## Training recipe
 
 - Official 60,000/10,000 split; 10% stratified validation from train
 - Pixels scaled to `[0, 1]`, then normalised with **train-split** mean/std
-- Cross-entropy, Adam, batch size 128, max 30 epochs, early stopping (patience 5) on validation loss
-- Augmentation on CNN training only: horizontal flip `p=0.5` and a shift of at most 2 pixels; never on val/test
-- Grad-CAM on the last convolutional layer (`conv2`); not applied to the MLP
+- Cross-entropy, Adam, batch size 128, max 30 epochs, early stopping (patience 5)
+- Two CNN-only augmentations, never on val/test:
+  - `flip_shift`: horizontal flip `p=0.5` and a shift of at most 2 pixels
+  - `crop`: `RandomCrop(28, padding=4)`
+- Grad-CAM on `conv2`; Adebayo check randomises classifier → conv2 → all weights
+- Not applied to the MLP
 
 ## What not to zip
 
-Do **not** include these in the submission archive:
-
 - `.venv/`
-- `data/` (Fashion-MNIST download cache)
-- `results/checkpoints/` and `*.pt` files
+- `data/`
+- `results/checkpoints/` and `*.pt`
 - `__pycache__/`
 
 Keep `results/*.csv`, `results/*.json`, `results/ablation.md`, and `figures/*.png`.

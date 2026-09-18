@@ -121,3 +121,36 @@ def pair_confusion(cm: np.ndarray, true_name: str, pred_name: str) -> int:
     true_idx = CLASS_NAMES.index(true_name)
     pred_idx = CLASS_NAMES.index(pred_name)
     return int(cm[true_idx, pred_idx])
+
+
+def plot_per_class_f1(summary_rows: list[dict], out_path: str | Path) -> Path:
+    """Grouped bar chart of mean test F1 for the four reported runs."""
+    run_order = ["mlp", "cnn", "cnn_aug", "cnn_crop"]
+    labels = {
+        "mlp": "MLP",
+        "cnn": "CNN",
+        "cnn_aug": "CNN+flip/shift",
+        "cnn_crop": "CNN+crop",
+    }
+    colors = ["#A0CBE8", "#4C78A8", "#F58518", "#54A24B"]
+    lookup = {(row["run"], row["class_name"]): float(row["f1_mean"]) for row in summary_rows}
+
+    x = np.arange(len(CLASS_NAMES))
+    width = 0.2
+    fig, ax = plt.subplots(figsize=(11, 4.2))
+    for i, run in enumerate(run_order):
+        means = [lookup[(run, name)] for name in CLASS_NAMES]
+        ax.bar(x + (i - 1.5) * width, means, width, label=labels[run], color=colors[i])
+    ax.set_xticks(x)
+    ax.set_xticklabels(CLASS_NAMES, rotation=20, ha="right")
+    ax.set_ylabel("Mean test $F_1$ (3 seeds)")
+    ax.set_ylim(0.65, 1.0)
+    ax.axhline(0.80, color="#888888", linestyle="--", linewidth=0.8)
+    ax.set_title("Per-class test $F_1$ on Fashion-MNIST")
+    ax.legend(frameon=False, ncol=4, loc="upper right")
+    fig.tight_layout()
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_path

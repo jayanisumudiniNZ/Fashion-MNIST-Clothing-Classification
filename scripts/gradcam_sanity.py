@@ -125,8 +125,6 @@ def main() -> None:
             )
             axes[row_idx, col].imshow(overlay_heatmap(gray, cam))
             axes[row_idx, col].axis("off")
-            if col == 0:
-                axes[row_idx, col].set_ylabel(label, fontsize=8)
             if key != "trained":
                 corr_rows.append(
                     {
@@ -138,7 +136,18 @@ def main() -> None:
                     }
                 )
 
-    axes[0, 0].set_ylabel("Image")
+    row_labels = ["Image"] + [label for _, label in levels]
+    for row_idx, label in enumerate(row_labels):
+        axes[row_idx, 0].text(
+            -0.12,
+            0.5,
+            label,
+            transform=axes[row_idx, 0].transAxes,
+            va="center",
+            ha="right",
+            fontsize=8,
+            rotation=90,
+        )
     fig.suptitle(
         "Adebayo model-randomisation check: Grad-CAM for the trained predicted class"
     )

@@ -1,4 +1,9 @@
-"""CNN learning-rate sweep, then MLP / CNN / CNN+aug reported runs."""
+"""CNN learning-rate sweep, then four reported runs.
+
+The four systems are trained separately so architecture (MLP vs CNN) is not
+mixed with augmentation, and so crop is a fourth isolated CNN run rather
+than a replacement of flip+shift.
+"""
 
 from __future__ import annotations
 
@@ -233,13 +238,22 @@ def run_reported_experiments(args, device, lr: float) -> None:
         subset = [row for row in run_rows if row["run"] == name]
         acc = [float(row["test_accuracy"]) for row in subset]
         f1 = [float(row["test_macro_f1"]) for row in subset]
-        spec = next((item for item in RUNS if item["name"] == name), subset[0])
+        spec = next((item for item in RUNS if item["name"] == name), None)
+        augment = subset[0]["augment"]
+        if spec is not None:
+            augment = spec["augment"]
+        if str(augment).lower() == "false":
+            aug_kind = "none"
+        elif spec is not None:
+            aug_kind = spec["aug_kind"]
+        else:
+            aug_kind = subset[0].get("aug_kind", "none")
         summary_rows.append(
             {
                 "run": name,
-                "model": spec["model"] if isinstance(spec, dict) and "model" in spec else subset[0]["model"],
-                "augment": spec["augment"] if isinstance(spec, dict) and "augment" in spec else subset[0]["augment"],
-                "aug_kind": spec.get("aug_kind", subset[0].get("aug_kind", "none")) if isinstance(spec, dict) else subset[0].get("aug_kind", "none"),
+                "model": spec["model"] if spec is not None else subset[0]["model"],
+                "augment": augment,
+                "aug_kind": aug_kind,
                 "lr": lr,
                 "n_seeds": len(subset),
                 "accuracy_mean": statistics.mean(acc),
