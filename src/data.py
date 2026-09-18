@@ -30,7 +30,10 @@ CLASS_NAMES = [
 
 VAL_FRACTION = 0.1
 MAX_SHIFT_PIXELS = 2
+CROP_PADDING = 4
 IMAGE_SIZE = 28
+AUG_FLIP_SHIFT = "flip_shift"
+AUG_CROP = "crop"
 
 
 @dataclass
@@ -47,6 +50,7 @@ class FashionMNISTSplits:
     n_test: int
     class_names: list[str]
     augment: bool
+    aug_kind: str
 
 
 def _default_data_dir(data_dir: str | Path | None) -> Path:
@@ -73,14 +77,19 @@ def _train_mean_std(raw_dataset: datasets.FashionMNIST, train_idx: list[int]):
     return float(images.mean()), float(images.std())
 
 
-def _train_transforms(mean: float, std: float, augment: bool):
+def _train_transforms(mean: float, std: float, augment: bool, aug_kind: str = AUG_FLIP_SHIFT):
     geometric = []
     if augment:
-        translate = (MAX_SHIFT_PIXELS / IMAGE_SIZE, MAX_SHIFT_PIXELS / IMAGE_SIZE)
-        geometric = [
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomAffine(degrees=0, translate=translate, fill=0),
-        ]
+        if aug_kind == AUG_CROP:
+            geometric = [
+                transforms.RandomCrop(IMAGE_SIZE, padding=CROP_PADDING, fill=0),
+            ]
+        else:
+            translate = (MAX_SHIFT_PIXELS / IMAGE_SIZE, MAX_SHIFT_PIXELS / IMAGE_SIZE)
+            geometric = [
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomAffine(degrees=0, translate=translate, fill=0),
+            ]
     return transforms.Compose(
         geometric
         + [
@@ -102,6 +111,7 @@ def _eval_transforms(mean: float, std: float):
 def get_dataloaders(
     batch_size: int = 128,
     augment: bool = False,
+    aug_kind: str = AUG_FLIP_SHIFT,
     data_dir: str | Path | None = None,
     num_workers: int = 0,
     seed: int = 42,
@@ -112,10 +122,15 @@ def get_dataloaders(
     Validation is a stratified 10% hold-out from the official training set.
     ``seed`` controls that split so it stays fixed across training runs.
     ``shuffle_seed`` only changes training-batch order (defaults to ``seed``).
-    Augmentation (horizontal flip and at most 2-pixel shift) is applied to the
-    training split only when ``augment=True``. Validation and test are never
-    augmented. Normalisation uses the training-split mean and std.
+    Training-only augmentation when ``augment=True``:
+    * ``flip_shift``: horizontal flip (p=0.5) and at most 2-pixel shift
+    * ``crop``: random crop after 4-pixel padding (isolated from flip/shift)
+    Validation and test are never augmented. Normalisation uses the
+    training-split mean and std.
     """
+    if aug_kind not in {AUG_FLIP_SHIFT, AUG_CROP}:
+        raise ValueError(f"Unknown aug_kind: {aug_kind}")
+    kind = aug_kind if augment else "none"
     data_path = _default_data_dir(data_dir)
     data_path.mkdir(parents=True, exist_ok=True)
 
@@ -129,7 +144,7 @@ def get_dataloaders(
         root=str(data_path),
         train=True,
         download=False,
-        transform=_train_transforms(mean, std, augment),
+        transform=_train_transforms(mean, std, augment, aug_kind),
     )
     val_ds = datasets.FashionMNIST(
         root=str(data_path),
@@ -178,6 +193,7 @@ def get_dataloaders(
         n_test=len(test_ds),
         class_names=list(CLASS_NAMES),
         augment=augment,
+        aug_kind=kind,
     )
 
 
@@ -211,7 +227,9 @@ def plot_training_samples(
         ax.axis("off")
 
     title = "Training samples"
-    if splits.augment:
+    if splits.aug_kind == AUG_CROP:
+        title += f" (random crop, pad={CROP_PADDING})"
+    elif splits.aug_kind == AUG_FLIP_SHIFT:
         title += " (with flip + shift)"
     fig.suptitle(title)
     fig.tight_layout()

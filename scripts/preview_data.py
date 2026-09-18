@@ -13,7 +13,7 @@ def _print_splits(splits, title: str) -> None:
     print(title)
     print(f"  train={splits.n_train}  val={splits.n_val}  test={splits.n_test}")
     print(f"  train mean={splits.mean:.4f}  std={splits.std:.4f}")
-    print(f"  augmentation={splits.augment}")
+    print(f"  augmentation={splits.augment}  aug_kind={splits.aug_kind}")
     images, labels = next(iter(splits.train_loader))
     print(f"  batch images={tuple(images.shape)}  labels={tuple(labels.shape)}")
 
@@ -26,10 +26,15 @@ def main() -> None:
     plot_training_samples(plain, figures / "sample_train.png")
     print(f"  saved {figures / 'sample_train.png'}")
 
-    augmented = get_dataloaders(batch_size=128, augment=True)
-    _print_splits(augmented, "With training augmentation (CNN + aug)")
+    augmented = get_dataloaders(batch_size=128, augment=True, aug_kind="flip_shift")
+    _print_splits(augmented, "With flip + shift (CNN + aug)")
     plot_training_samples(augmented, figures / "sample_train_aug.png")
     print(f"  saved {figures / 'sample_train_aug.png'}")
+
+    cropped = get_dataloaders(batch_size=128, augment=True, aug_kind="crop")
+    _print_splits(cropped, "With random crop, pad=4 (CNN + crop)")
+    plot_training_samples(cropped, figures / "sample_train_crop.png")
+    print(f"  saved {figures / 'sample_train_crop.png'}")
 
 
 if __name__ == "__main__":

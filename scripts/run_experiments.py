@@ -28,9 +28,10 @@ SPLIT_SEED = 42
 SWEEP_SEED = 0
 
 RUNS = [
-    {"name": "mlp", "model": "mlp", "augment": False},
-    {"name": "cnn", "model": "cnn", "augment": False},
-    {"name": "cnn_aug", "model": "cnn", "augment": True},
+    {"name": "mlp", "model": "mlp", "augment": False, "aug_kind": "flip_shift"},
+    {"name": "cnn", "model": "cnn", "augment": False, "aug_kind": "flip_shift"},
+    {"name": "cnn_aug", "model": "cnn", "augment": True, "aug_kind": "flip_shift"},
+    {"name": "cnn_crop", "model": "cnn", "augment": True, "aug_kind": "crop"},
 ]
 
 
@@ -40,6 +41,21 @@ def _build_model(name: str):
     if name == "cnn":
         return CNN()
     raise ValueError(f"Unknown model: {name}")
+
+
+def _read_csv(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    with path.open(newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def _merge_by_run(existing: list[dict], new_rows: list[dict]) -> list[dict]:
+    trained = {row["run"] for row in new_rows}
+    kept = [row for row in existing if row["run"] not in trained]
+    merged = kept + new_rows
+    merged.sort(key=lambda row: (row["run"], int(row.get("seed", 0))))
+    return merged
 
 
 def _write_csv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
@@ -116,17 +132,24 @@ def run_lr_sweep(args, device) -> float:
 
 
 def run_reported_experiments(args, device, lr: float) -> None:
-    print(f"\n=== Reported runs with lr={lr:g} ===")
+    selected = [spec for spec in RUNS if spec["name"] in args.runs]
+    if not selected:
+        raise ValueError(f"No matching runs for {args.runs}. Choose from {[s['name'] for s in RUNS]}")
+    print(f"\n=== Reported runs with lr={lr:g}: {', '.join(s['name'] for s in selected)} ===")
     run_rows = []
     per_class_rows = []
     ckpt_dir = ROOT / "results" / "checkpoints"
 
-    for spec in RUNS:
+    for spec in selected:
         for seed in args.seeds:
-            print(f"\nRun {spec['name']}  seed={seed}  augment={spec['augment']}")
+            print(
+                f"\nRun {spec['name']}  seed={seed}  "
+                f"augment={spec['augment']}  aug_kind={spec['aug_kind']}"
+            )
             splits = get_dataloaders(
                 batch_size=args.batch_size,
                 augment=spec["augment"],
+                aug_kind=spec["aug_kind"],
                 seed=SPLIT_SEED,
                 shuffle_seed=seed,
             )
@@ -154,6 +177,7 @@ def run_reported_experiments(args, device, lr: float) -> None:
                     "run": spec["name"],
                     "model": spec["model"],
                     "augment": spec["augment"],
+                    "aug_kind": spec["aug_kind"] if spec["augment"] else "none",
                     "seed": seed,
                     "lr": lr,
                     "best_epoch": result["best_epoch"],
@@ -173,23 +197,30 @@ def run_reported_experiments(args, device, lr: float) -> None:
                     }
                 )
 
-    _write_csv(
-        ROOT / "results" / "runs.csv",
-        run_rows,
-        [
-            "run",
-            "model",
-            "augment",
-            "seed",
-            "lr",
-            "best_epoch",
-            "best_val_loss",
-            "best_val_acc",
-            "test_accuracy",
-            "test_macro_f1",
-            "checkpoint",
-        ],
-    )
+    run_fields = [
+        "run",
+        "model",
+        "augment",
+        "aug_kind",
+        "seed",
+        "lr",
+        "best_epoch",
+        "best_val_loss",
+        "best_val_acc",
+        "test_accuracy",
+        "test_macro_f1",
+        "checkpoint",
+    ]
+    existing_runs = _read_csv(ROOT / "results" / "runs.csv")
+    if existing_runs and set(args.runs) != {spec["name"] for spec in RUNS}:
+        for row in existing_runs:
+            row.setdefault("aug_kind", "none" if row.get("augment") in {"False", "false", False} else "flip_shift")
+        run_rows = _merge_by_run(existing_runs, run_rows)
+    _write_csv(ROOT / "results" / "runs.csv", run_rows, run_fields)
+
+    existing_pc = _read_csv(ROOT / "results" / "per_class.csv")
+    if existing_pc and set(args.runs) != {spec["name"] for spec in RUNS}:
+        per_class_rows = _merge_by_run(existing_pc, per_class_rows)
     _write_csv(
         ROOT / "results" / "per_class.csv",
         per_class_rows,
@@ -197,15 +228,18 @@ def run_reported_experiments(args, device, lr: float) -> None:
     )
 
     summary_rows = []
-    for spec in RUNS:
-        subset = [row for row in run_rows if row["run"] == spec["name"]]
-        acc = [row["test_accuracy"] for row in subset]
-        f1 = [row["test_macro_f1"] for row in subset]
+    run_names = sorted({row["run"] for row in run_rows})
+    for name in run_names:
+        subset = [row for row in run_rows if row["run"] == name]
+        acc = [float(row["test_accuracy"]) for row in subset]
+        f1 = [float(row["test_macro_f1"]) for row in subset]
+        spec = next((item for item in RUNS if item["name"] == name), subset[0])
         summary_rows.append(
             {
-                "run": spec["name"],
-                "model": spec["model"],
-                "augment": spec["augment"],
+                "run": name,
+                "model": spec["model"] if isinstance(spec, dict) and "model" in spec else subset[0]["model"],
+                "augment": spec["augment"] if isinstance(spec, dict) and "augment" in spec else subset[0]["augment"],
+                "aug_kind": spec.get("aug_kind", subset[0].get("aug_kind", "none")) if isinstance(spec, dict) else subset[0].get("aug_kind", "none"),
                 "lr": lr,
                 "n_seeds": len(subset),
                 "accuracy_mean": statistics.mean(acc),
@@ -214,6 +248,8 @@ def run_reported_experiments(args, device, lr: float) -> None:
                 "macro_f1_std": statistics.stdev(f1) if len(f1) > 1 else 0.0,
             }
         )
+    order = {spec["name"]: i for i, spec in enumerate(RUNS)}
+    summary_rows.sort(key=lambda row: order.get(row["run"], 99))
     _write_csv(
         ROOT / "results" / "metrics.csv",
         summary_rows,
@@ -221,6 +257,7 @@ def run_reported_experiments(args, device, lr: float) -> None:
             "run",
             "model",
             "augment",
+            "aug_kind",
             "lr",
             "n_seeds",
             "accuracy_mean",
@@ -255,6 +292,14 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=None,
         help="Skip the sweep and use this learning rate for reported runs",
+    )
+    parser.add_argument(
+        "--runs",
+        nargs="+",
+        default=[spec["name"] for spec in RUNS],
+        choices=[spec["name"] for spec in RUNS],
+        help="Which reported runs to train. Default is all four. "
+        "Use --runs cnn_crop to add the crop ablation without retraining the others.",
     )
     parser.add_argument(
         "--skip-sweep",

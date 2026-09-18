@@ -149,15 +149,18 @@ def main() -> None:
     )
 
     print("\nMean test F1 over 3 seeds (focus classes):")
-    print(f"{'class':<12}  {'mlp':>8}  {'cnn':>8}  {'cnn_aug':>8}")
+    print(f"{'class':<12}  {'mlp':>8}  {'cnn':>8}  {'cnn_aug':>8}  {'cnn_crop':>8}")
     for name in FOCUS_CLASSES:
         values = {
             row["run"]: row["f1_mean"]
             for row in summary
             if row["class_name"] == name
         }
+        crop = values.get("cnn_crop")
+        crop_s = f"{crop:.4f}" if crop is not None else "   n/a"
         print(
-            f"{name:<12}  {values['mlp']:.4f}  {values['cnn']:.4f}  {values['cnn_aug']:.4f}"
+            f"{name:<12}  {values['mlp']:.4f}  {values['cnn']:.4f}  "
+            f"{values['cnn_aug']:.4f}  {crop_s}"
         )
 
 

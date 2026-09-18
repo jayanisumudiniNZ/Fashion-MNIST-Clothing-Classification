@@ -1,0 +1,16 @@
+case,level,spearman_vs_trained,true,pred
+Correct top,rand_fc,0.3665771689743325,Shirt,Shirt
+Correct top,rand_conv2,0.24241097420006144,Shirt,Shirt
+Correct top,rand_all,0.26150628052670666,Shirt,Shirt
+Correct shoe,rand_fc,0.20770905331163875,Ankle boot,Ankle boot
+Correct shoe,rand_conv2,-0.20540898254023038,Ankle boot,Ankle boot
+Correct shoe,rand_all,0.20355714728969412,Ankle boot,Ankle boot
+Correct bag,rand_fc,-0.25261794446162683,Bag,Bag
+Correct bag,rand_conv2,-0.19913490544471688,Bag,Bag
+Correct bag,rand_all,-0.16555773198802912,Bag,Bag
+Error: Shirt → T-shirt/top,rand_fc,0.34555031618035603,Shirt,T-shirt/top
+Error: Shirt → T-shirt/top,rand_conv2,0.17191119657468376,Shirt,T-shirt/top
+Error: Shirt → T-shirt/top,rand_all,0.08991788823297092,Shirt,T-shirt/top
+Error: T-shirt/top → Shirt,rand_fc,0.15743602807548088,T-shirt/top,Shirt
+Error: T-shirt/top → Shirt,rand_conv2,0.36106098343869364,T-shirt/top,Shirt
+Error: T-shirt/top → Shirt,rand_all,0.037025773044410674,T-shirt/top,Shirt

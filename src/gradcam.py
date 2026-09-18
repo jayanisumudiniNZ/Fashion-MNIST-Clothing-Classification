@@ -91,7 +91,11 @@ def overlay_heatmap(gray: np.ndarray, cam: np.ndarray, alpha: float = 0.45) -> n
     return (1.0 - alpha) * rgb + alpha * heat
 
 
-def _collect_cases(model: nn.Module, loader: DataLoader, device: torch.device) -> list[dict]:
+def to_display_image(image: torch.Tensor, mean: float, std: float) -> np.ndarray:
+    return _to_display_image(image, mean, std)
+
+
+def collect_gradcam_cases(model: nn.Module, loader: DataLoader, device: torch.device) -> list[dict]:
     """Pick correct tops/shoes/bag examples and Shirt ↔ T-shirt errors."""
     wanted = {
         "correct_top": None,
@@ -185,7 +189,7 @@ def save_gradcam_grid(
 ) -> Path:
     """Save overlays for correct predictions and Shirt / T-shirt errors."""
     device = device or next(model.parameters()).device
-    cases = _collect_cases(model, test_loader, device)
+    cases = collect_gradcam_cases(model, test_loader, device)
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
